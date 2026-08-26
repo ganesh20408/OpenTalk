@@ -3,6 +3,7 @@ import sqlite3
 import json
 import PyPDF2
 import google.generativeai as genai
+import time
 
 # ==========================================
 # 1. SETUP AI AND DATABASE
@@ -17,28 +18,38 @@ except Exception as e:
     st.error("API Key not found! Please add GEMINI_API_KEY in your Streamlit App Secrets.")
     st.stop()
 
-# Helper function to dynamically find the best active Gemini model
-def get_working_model():
-    # Priority list of current models
-    preferred = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest', 'gemini-pro']
+# Helper function to generate content with automatic fallbacks and retries
+def generate_quiz_with_fallback(prompt):
+    # Ranked list of models to try if one is busy
+    fallback_models = [
+        'gemini-3.7-flash', 
+        'gemini-3.5-flash', 
+        'gemini-2.5-flash', 
+        'gemini-1.5-flash'
+    ]
     
-    # Try finding an available model from the API
-    try:
-        available_models = [
-            m.name for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods
-        ]
-        for pref in preferred:
-            for avail in available_models:
-                if pref in avail:
-                    return genai.GenerativeModel(avail)
-        if available_models:
-            return genai.GenerativeModel(available_models[0])
-    except Exception:
-        pass
+    last_error = None
     
-    # Fallback to default
-    return genai.GenerativeModel('gemini-2.0-flash')
+    # Try each model in the list
+    for model_name in fallback_models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            # Try 2 times per model before giving up
+            for attempt in range(2):
+                try:
+                    response = model.generate_content(prompt)
+                    return response.text # Success! Return the text.
+                except Exception as e:
+                    last_error = str(e)
+                    if "503" in last_error or "overloaded" in last_error.lower():
+                        time.sleep(2) # Wait 2 seconds before retrying if server is busy
+                        continue
+                    else:
+                        break # Break loop if it's not a 503 error
+        except Exception:
+            continue # Try the next model in the list
+            
+    raise Exception(f"All models failed or are overloaded. Last error: {last_error}")
 
 # Connect to our local database
 conn = sqlite3.connect('sih_learning_platform.db')
@@ -58,7 +69,7 @@ st.write("Upload a learning document. The AI will generate a quiz, identify gaps
 uploaded_file = st.file_uploader("Step 1: Upload a PDF document", type=['pdf'])
 
 if uploaded_file is not None:
-    with st.spinner("Reading document text..."):
+    with st.spinner("Reading document..."):
         try:
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
             document_text = ""
@@ -71,9 +82,9 @@ if uploaded_file is not None:
             document_text = ""
 
     if len(document_text.strip()) < 50:
-        st.warning("The uploaded PDF does not contain enough readable text. Please upload a PDF with digital text.")
+        st.warning("The uploaded PDF does not contain enough readable text.")
     else:
-        st.success("Document read successfully! Generating quiz...")
+        st.success(f"Document read successfully! Extracted approximately {len(document_text)} characters.")
 
         # ==========================================
         # 4. AI GENERATES QUIZ FROM TEXT
@@ -94,11 +105,11 @@ if uploaded_file is not None:
         """
 
         try:
-            with st.spinner("AI is generating your quiz..."):
-                model = get_working_model()
-                response = model.generate_content(prompt)
+            with st.spinner("Gemini is generating your knowledge-check question..."):
+                # Call our new smart fallback function
+                raw_response = generate_quiz_with_fallback(prompt)
 
-                clean_text = response.text.replace('```json', '').replace('```', '').strip()
+                clean_text = raw_response.replace('```json', '').replace('```', '').strip()
                 quiz_data = json.loads(clean_text)
 
             # Display Quiz
@@ -122,7 +133,9 @@ if uploaded_file is not None:
                     st.toast("Competency gap recorded in the database.")
 
         except Exception as e:
-            st.error(f"AI Generation Error: {e}")
+            st.error("Gemini could not generate the quiz due to high server demand.")
+            st.write("Error details:", e)
+            st.info("Tip: Try uploading again in a few minutes once Google's servers cool down.")
 
 # ==========================================
 # 5. ADMIN VIEW
@@ -133,3 +146,4 @@ if st.button("Admin: View Competency Gaps Database"):
     data = c.fetchall()
     st.write("Saved Data (Name | Skill Gap | Recommendation):")
     st.write(data)
+
