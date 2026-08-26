@@ -8,7 +8,7 @@ import google.generativeai as genai
 # 1. SETUP AI AND DATABASE
 # ==========================================
 # TODO: Paste your Gemini API key inside the quotes below
-API_KEY = "YOUR_API_KEY_HERE"
+API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=API_KEY)
 
 # Connect to our local database (creates a file in your folder automatically)
