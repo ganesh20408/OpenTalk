@@ -14,8 +14,31 @@ try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
 except Exception as e:
-    st.error("API Key not found! Please add GEMINI_API_KEY to your Streamlit App Secrets.")
+    st.error("API Key not found! Please add GEMINI_API_KEY in your Streamlit App Secrets.")
     st.stop()
+
+# Helper function to dynamically find the best active Gemini model
+def get_working_model():
+    # Priority list of current models
+    preferred = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest', 'gemini-pro']
+    
+    # Try finding an available model from the API
+    try:
+        available_models = [
+            m.name for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+        for pref in preferred:
+            for avail in available_models:
+                if pref in avail:
+                    return genai.GenerativeModel(avail)
+        if available_models:
+            return genai.GenerativeModel(available_models[0])
+    except Exception:
+        pass
+    
+    # Fallback to default
+    return genai.GenerativeModel('gemini-2.0-flash')
 
 # Connect to our local database
 conn = sqlite3.connect('sih_learning_platform.db')
@@ -48,7 +71,7 @@ if uploaded_file is not None:
             document_text = ""
 
     if len(document_text.strip()) < 50:
-        st.warning("The uploaded PDF does not contain enough readable text. Please try another PDF.")
+        st.warning("The uploaded PDF does not contain enough readable text. Please upload a PDF with digital text.")
     else:
         st.success("Document read successfully! Generating quiz...")
 
@@ -58,7 +81,7 @@ if uploaded_file is not None:
         prompt = f"""
         Read the following text and create 1 multiple-choice question with 4 options to test the reader's understanding.
         Also, identify the competency gap (skill or topic name) if they answer incorrectly.
-        Output ONLY valid JSON in this exact structure without any markdown ticks:
+        Output ONLY valid JSON in this exact structure without any extra markdown formatting or backticks:
         {{
             "question": "Sample question?",
             "options": ["Option A", "Option B", "Option C", "Option D"],
@@ -72,13 +95,8 @@ if uploaded_file is not None:
 
         try:
             with st.spinner("AI is generating your quiz..."):
-                # Use gemini-1.5-flash with fallback to gemini-1.5-pro
-                try:
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    response = model.generate_content(prompt)
-                except Exception:
-                    model = genai.GenerativeModel('gemini-1.5-pro')
-                    response = model.generate_content(prompt)
+                model = get_working_model()
+                response = model.generate_content(prompt)
 
                 clean_text = response.text.replace('```json', '').replace('```', '').strip()
                 quiz_data = json.loads(clean_text)
@@ -105,7 +123,6 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error(f"AI Generation Error: {e}")
-            st.info("Tip: Double-check your Gemini API Key in Streamlit Secrets if this persists.")
 
 # ==========================================
 # 5. ADMIN VIEW
