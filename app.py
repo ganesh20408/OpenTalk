@@ -304,3 +304,6 @@ if st.button("Admin: View Competency Gaps Database"):
             st.info("No competency gaps have been recorded yet.")
     except Exception as e:
         st.error(f"Could not read database: {e}")
+
+
+
