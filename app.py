@@ -329,8 +329,9 @@ Learning material:
                     
                     # For the Hackathon Demo (Fallbacks in case the live government API is firewalled):
                     fetched_courses = [
-                        {"name": f"Foundations of {gap}", "provider": "Capacity Building Commission", "link": f"https://igotkarmayogi.gov.in/explore-course?q={urllib.parse.quote(gap)}"},
-                        {"name": f"Advanced {gap} for Civil Servants", "provider": "LBSNAA", "link": f"https://igotkarmayogi.gov.in/explore-course?q={urllib.parse.quote(gap)}"}
+                        {"name": f"Foundations of {gap}", "provider": "Capacity Building Commission", "link": "https://portal.igotkarmayogi.gov.in/"},
+                        {"name": f"Advanced {gap} for Civil Servants", "provider": "LBSNAA", "link": "https://portal.igotkarmayogi.gov.in/"},
+                        
                     ]
                     
                     st.write("📚 **Curated iGOT Modules (Click to enroll):**")
