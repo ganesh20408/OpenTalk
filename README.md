@@ -12,9 +12,9 @@ This is a prototype built for the Smart India Hackathon (SIH26101). It is an AI-
 ## Tech Stack
 * **Language:** Python
 * **Frontend:** Streamlit
-* **AI/LLM:** Google Gemini 1.5 Flash API
+* **AI/LLM:** Google Gemini 3.7 Flash API
 * **Database:** SQLite
-* **Document Processing:** PyPDF2
+* **Document Processing:** PyMuPDF
 
 ## How to Run the Prototype Locally
 1. Ensure Python is installed on your machine.
